@@ -251,6 +251,70 @@
       text-decoration: underline;
       color: #fff;
     }
+
+    /* ── Panel drag handle (mobile) ──────────────────── */
+    .panel-handle {
+      display: none;
+      width: 40px; height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      margin: 12px auto 4px;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+
+    /* ── Mobile layout ───────────────────────────────── */
+    @media (max-width: 768px) {
+      :root { --header-h: 48px; }
+
+      #header h1 { font-size: 15px; }
+      #level-label { display: none; }
+      .header-legend { display: none; }
+      #back-btn { font-size: 13px; padding: 6px 12px; }
+
+      /* Map fills entire layout area */
+      #layout { position: relative; overflow: hidden; }
+      #map-wrap { position: absolute; inset: 0; }
+
+      /* Panel becomes a bottom sheet */
+      #panel {
+        position: absolute;
+        bottom: 0; left: 0; right: 0;
+        width: 100%;
+        max-height: 78vh;
+        border-left: none;
+        border-top: none;
+        border-radius: 18px 18px 0 0;
+        box-shadow: 0 -2px 24px rgba(0,0,0,0.14);
+        transform: translateY(calc(100% - 64px));
+        transition: transform 0.3s cubic-bezier(.4,0,.2,1);
+        z-index: 900;
+        overflow-y: auto;
+      }
+      #panel.sheet-expanded { transform: translateY(0); }
+
+      .panel-handle { display: block; }
+
+      /* Peek bar when collapsed: show name + badge in 64px */
+      .sheet-peek {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 20px 10px;
+        min-height: 36px;
+      }
+      .sheet-peek-name { font-size: 15px; font-weight: 700; flex: 1; }
+      .sheet-peek-badge { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
+
+      /* Leaflet zoom control — move up so panel doesn't overlap */
+      .leaflet-bottom.leaflet-right { bottom: 72px !important; }
+
+      /* Bigger touch targets */
+      .tab-btn { padding: 14px 0 12px; font-size: 15px; }
+      .pane-header { padding: 16px 20px 12px; }
+      .demo-card { padding: 14px 16px; }
+      .demo-val { font-size: 22px; }
+    }
   </style>
 </head>
 <body>
@@ -273,6 +337,11 @@
   </div>
 
   <div id="panel">
+    <div class="panel-handle" id="panel-handle"></div>
+    <div class="sheet-peek" id="sheet-peek" style="display:none">
+      <span class="sheet-peek-name" id="peek-name">시도를 클릭하세요</span>
+      <span class="sheet-peek-badge" id="peek-badge"></span>
+    </div>
 
     <!-- ① 전국 기본 패널 -->
     <div id="panel-national">
@@ -602,6 +671,7 @@ function goBack() {
   document.getElementById('back-btn').style.display = 'none';
   document.getElementById('level-label').textContent = '9회 전국동시지방선거 예측';
   showPanel('national');
+  if (isMobile()) setSheetExpanded(false);
 }
 
 // ── Click empty map ────────────────────────────────────────────
@@ -658,6 +728,10 @@ function showSidoPanel(p) {
   ).join('');
 
   switchTab('sido', '단체장', document.querySelector('#sido-tabs .tab-btn[data-tab="단체장"]'));
+  if (isMobile()) {
+    updatePeek(p.sido, badgeHTML(p.pred_winner, Math.abs((p.pred_민주||0)-(p.pred_국힘||0))));
+    setSheetExpanded(true);
+  }
 }
 
 // ── Sigungu detail panel ───────────────────────────────────────
@@ -725,7 +799,29 @@ function showSggDetail(p) {
     partyBarHTML('기타', p.pred_기초_기타, 'var(--other)');
 
   switchTab('sgg', '단체장', document.querySelector('#sgg-tabs .tab-btn[data-tab="단체장"]'));
+  if (isMobile()) {
+    updatePeek(p.sigungu || p.adm_nm, badgeHTML(p.pred_winner, Math.abs((p.pred_민주||0)-(p.pred_국힘||0))));
+    setSheetExpanded(true);
+  }
 }
+
+// ── Mobile bottom sheet ────────────────────────────────────────
+function isMobile() { return window.innerWidth <= 768; }
+
+function setSheetExpanded(expand) {
+  document.getElementById('panel').classList.toggle('sheet-expanded', expand);
+  document.getElementById('sheet-peek').style.display = expand ? 'none' : 'flex';
+}
+
+function updatePeek(name, badgeHTML) {
+  document.getElementById('peek-name').textContent = name || '';
+  document.getElementById('peek-badge').innerHTML = badgeHTML || '';
+}
+
+document.getElementById('panel-handle').addEventListener('click', () => {
+  const panel = document.getElementById('panel');
+  setSheetExpanded(!panel.classList.contains('sheet-expanded'));
+});
 
 // ── Load data ──────────────────────────────────────────────────
 const _v = Date.now();
