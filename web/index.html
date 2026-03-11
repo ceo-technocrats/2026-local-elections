@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>민심지도 2026 — 9회 전국동시지방선거 예측</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --blue:     #2563eb;
+      --blue-bg:  #eff6ff;
+      --blue-mid: #93c5fd;
+      --red:      #dc2626;
+      --red-bg:   #fff1f2;
+      --red-mid:  #fca5a5;
+      --other:    #64748b;
+      --other-bg: #f1f5f9;
+      --other-mid:#94a3b8;
+      --gray:     #9ca3af;
+      --surface:  #ffffff;
+      --bg:       #f1f5f9;
+      --border:   #e2e8f0;
+      --text1:    #0f172a;
+      --text2:    #475569;
+      --text3:    #94a3b8;
+      --header-h: 52px;
+    }
+
+    html, body { height: 100%; overflow: hidden; }
+    body { font-family: 'Noto Sans KR', sans-serif; background: var(--bg); color: var(--text1); }
+
+    /* ── Header ─────────────────────────────────────── */
+    #header {
+      height: var(--header-h);
+      background: var(--text1);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 12px;
+      flex-shrink: 0;
+      z-index: 1000;
+      position: relative;
+    }
+    #back-btn {
+      display: none;
+      background: none;
+      border: 1px solid rgba(255,255,255,0.25);
+      color: #fff;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    #back-btn:hover { background: rgba(255,255,255,0.12); }
+    #header h1 { font-size: 17px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
+    #level-label { font-size: 12px; color: var(--text3); font-weight: 400; }
+    .header-legend { margin-left: auto; display: flex; gap: 14px; }
+    .legend-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #94a3b8; }
+    .legend-swatch { width: 9px; height: 9px; border-radius: 2px; }
+
+    /* ── Layout ─────────────────────────────────────── */
+    #layout { display: flex; height: calc(100vh - var(--header-h)); }
+    #map-wrap { flex: 1; position: relative; min-width: 0; }
+    #map { width: 100%; height: 100%; background: #a8c4d8; }
+    #panel {
+      width: 400px;
+      flex-shrink: 0;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Shared panel sections ───────────────────────── */
+    .pane-header {
+      padding: 20px 20px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .ph-sub  { font-size: 12px; color: var(--text3); margin-bottom: 4px; }
+    .ph-name { font-size: 22px; font-weight: 700; line-height: 1.2; }
+    .pd-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      margin-top: 10px; padding: 4px 12px 4px 8px;
+      border-radius: 20px; font-size: 13px; font-weight: 600;
+    }
+    .pd-badge .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .badge-blue { background: var(--blue-bg);  color: var(--blue); }
+    .badge-red  { background: var(--red-bg);   color: var(--red); }
+    .badge-gray { background: var(--other-bg); color: var(--text2); }
+
+    /* ── Tab bar ─────────────────────────────────────── */
+    .tab-bar {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      padding: 0 20px;
+    }
+    .tab-btn {
+      background: none; border: none;
+      border-bottom: 2px solid transparent;
+      font-family: inherit; font-size: 14px; font-weight: 500;
+      color: var(--text3);
+      padding: 12px 0 10px;
+      margin-right: 20px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: color 0.15s;
+    }
+    .tab-btn.active { color: var(--text1); border-bottom-color: var(--text1); }
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+
+    /* ── Party bars ─────────────────────────────────── */
+    .party-section { padding: 18px 20px 16px; border-bottom: 1px solid var(--border); }
+    .party-row { margin-bottom: 16px; }
+    .party-row:last-child { margin-bottom: 0; }
+    .party-meta {
+      display: flex; align-items: baseline;
+      justify-content: space-between; margin-bottom: 7px;
+    }
+    .party-name { font-size: 14px; font-weight: 500; }
+    .party-pct  { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; white-space: nowrap; }
+    .bar-track { height: 9px; background: var(--bg); border-radius: 5px; overflow: hidden; }
+    .bar-fill  { height: 100%; border-radius: 5px; transition: width 0.5s cubic-bezier(.4,0,.2,1); }
+
+    /* ── History ─────────────────────────────────────── */
+    .hist-section { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+    .section-label {
+      font-size: 11px; font-weight: 600; color: var(--text3);
+      text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 14px;
+    }
+    .hist-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .hist-row:last-child { margin-bottom: 0; }
+    .hist-round { font-size: 12px; color: var(--text2); width: 80px; flex-shrink: 0; line-height: 1.4; }
+    .hist-bars  { flex: 1; display: flex; flex-direction: column; gap: 5px; }
+    .hist-bar-row { display: flex; height: 6px; border-radius: 3px; overflow: hidden; gap: 1px; }
+    .hist-bar-dem { background: var(--blue-mid); border-radius: 3px 0 0 3px; }
+    .hist-bar-rep { background: var(--red-mid);  border-radius: 0; }
+    .hist-bar-oth { background: var(--other-mid); border-radius: 0 3px 3px 0; }
+    .hist-pcts { display: flex; justify-content: space-between; }
+    .hist-label { font-size: 12px; color: var(--text3); font-weight: 500; }
+
+    /* ── Demographics ────────────────────────────────── */
+    .demo-section { padding: 16px 20px 20px; }
+    .demo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .demo-card { background: var(--bg); border-radius: 10px; padding: 12px 14px; }
+    .demo-val   { font-size: 20px; font-weight: 700; color: var(--text1); }
+    .demo-lbl   { font-size: 12px; color: var(--text3); margin-top: 3px; }
+    .demo-full  { grid-column: 1 / -1; }
+
+    /* ── National default ────────────────────────────── */
+    #panel-national { display: flex; flex-direction: column; height: 100%; }
+    .welcome {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 32px 28px; text-align: center; gap: 12px;
+    }
+    .welcome-icon {
+      width: 56px; height: 56px; border-radius: 16px;
+      background: var(--bg); display: flex; align-items: center;
+      justify-content: center; font-size: 26px; margin-bottom: 4px;
+    }
+    .welcome h3 { font-size: 16px; font-weight: 600; }
+    .welcome p  { font-size: 14px; color: var(--text3); line-height: 1.8; }
+    .national-summary { border-top: 1px solid var(--border); padding: 20px 20px; }
+    .ns-title {
+      font-size: 11px; font-weight: 600; color: var(--text3);
+      text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 14px;
+    }
+    .ns-row {
+      display: flex; align-items: center;
+      justify-content: space-between; padding: 10px 0;
+    }
+    .ns-row + .ns-row { border-top: 1px solid var(--border); }
+    .ns-party { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 500; }
+    .ns-dot { width: 9px; height: 9px; border-radius: 50%; }
+    .ns-right { display: flex; align-items: baseline; gap: 5px; }
+    .ns-count { font-size: 28px; font-weight: 700; }
+    .ns-unit  { font-size: 13px; color: var(--text3); }
+
+    /* ── Sido summary panel ──────────────────────────── */
+    #panel-sido   { display: none; flex-direction: column; }
+    #panel-detail { flex-direction: column; }
+    .sido-wins {
+      display: flex; gap: 12px;
+      padding: 16px 20px 0;
+    }
+    .wins-card {
+      flex: 1; background: var(--bg); border-radius: 10px;
+      padding: 12px 14px; text-align: center;
+    }
+    .wins-val  { font-size: 26px; font-weight: 700; }
+    .wins-lbl  { font-size: 12px; color: var(--text3); margin-top: 3px; }
+    .seat-table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 12px; }
+    .seat-table th { text-align: left; color: var(--text3); font-weight: 500; font-size: 12px; padding: 5px 0; }
+    .seat-table td { padding: 5px 0; font-weight: 600; }
+
+    /* ── Loading / tooltip ───────────────────────────── */
+    #loading {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(241,245,249,0.9); z-index: 2000;
+      font-size: 14px; color: var(--text2); gap: 10px;
+    }
+    .spinner {
+      width: 20px; height: 20px;
+      border: 2px solid var(--border);
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .map-tooltip {
+      background: rgba(15,23,42,0.92) !important; border: none !important;
+      border-radius: 8px !important; color: #fff !important;
+      font-family: 'Noto Sans KR', sans-serif !important;
+      font-size: 13px !important; padding: 8px 13px !important;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
+      white-space: nowrap;
+    }
+    .map-tooltip::before { display: none !important; }
+    #panel::-webkit-scrollbar { width: 4px; }
+    #panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .leaflet-container { font-family: inherit; }
+    .leaflet-control-zoom a { color: var(--text1) !important; font-family: inherit !important; }
+
+    /* ── Sido name labels ────────────────────────────── */
+    .sido-label-marker {
+      font-family: 'Noto Sans KR', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      color: rgba(255,255,255,0.95);
+      text-shadow: 0 0 3px rgba(0,0,0,0.9), 0 1px 4px rgba(0,0,0,0.7);
+      white-space: nowrap;
+      cursor: pointer;
+      pointer-events: auto;
+      transform: translate(-50%, -50%);
+      display: block;
+      padding: 3px 5px;
+    }
+    .sido-label-marker:hover {
+      text-decoration: underline;
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+
+<div id="header">
+  <button id="back-btn" onclick="goBack()">← 전체 보기</button>
+  <h1>민심지도 2026</h1>
+  <span id="level-label" style="font-size:12px;color:var(--text3)">9회 전국동시지방선거 예측</span>
+  <div class="header-legend">
+    <div class="legend-item"><span class="legend-swatch" style="background:var(--blue)"></span>더불어민주당</div>
+    <div class="legend-item"><span class="legend-swatch" style="background:var(--red)"></span>국민의힘</div>
+    <div class="legend-item"><span class="legend-swatch" style="background:var(--other)"></span>기타</div>
+  </div>
+</div>
+
+<div id="layout">
+  <div id="map-wrap">
+    <div id="map"></div>
+    <div id="loading"><div class="spinner"></div>지도 불러오는 중…</div>
+  </div>
+
+  <div id="panel">
+
+    <!-- ① 전국 기본 패널 -->
+    <div id="panel-national">
+      <div class="welcome">
+        <div class="welcome-icon">🗺️</div>
+        <h3>시도를 클릭하세요</h3>
+        <p>시도를 클릭하면 시군구 단위로<br>드릴다운 할 수 있습니다.<br>시군구를 클릭하면 상세 분석을 확인하세요.</p>
+      </div>
+      <div class="national-summary">
+        <div class="ns-title">전국 예상 결과 (시군구 기준)</div>
+        <div class="ns-row">
+          <div class="ns-party"><span class="ns-dot" style="background:var(--blue)"></span>더불어민주당</div>
+          <div class="ns-right"><span class="ns-count" id="sum-dem" style="color:var(--blue)">—</span><span class="ns-unit">개 지역</span></div>
+        </div>
+        <div class="ns-row">
+          <div class="ns-party"><span class="ns-dot" style="background:var(--red)"></span>국민의힘</div>
+          <div class="ns-right"><span class="ns-count" id="sum-rep" style="color:var(--red)">—</span><span class="ns-unit">개 지역</span></div>
+        </div>
+        <div class="ns-row">
+          <div class="ns-party"><span class="ns-dot" style="background:var(--gray)"></span>박빙 (±5%p)</div>
+          <div class="ns-right"><span class="ns-count" id="sum-close" style="color:var(--gray)">—</span><span class="ns-unit">개 지역</span></div>
+        </div>
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+          <div style="font-size:12px;color:var(--text3);line-height:1.7">
+            역대 대선·총선·지방선거 결과와 2024년 인구 데이터를 기반으로 XGBoost로 예측.<br>최신 선거(21대 대선·22대 총선)에 높은 가중치 적용.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ② 시도 요약 패널 -->
+    <div id="panel-sido">
+      <div class="pane-header">
+        <button onclick="goBack()" style="
+          background:none; border:1px solid var(--border); color:var(--text2);
+          font-family:inherit; font-size:12px; font-weight:500;
+          padding:4px 10px; border-radius:6px; cursor:pointer; margin-bottom:10px;
+        ">← 전국 보기</button>
+        <div class="ph-sub" id="sido-sub">시도</div>
+        <div class="ph-name" id="sido-name">—</div>
+        <div id="sido-badge"></div>
+      </div>
+      <div class="tab-bar" id="sido-tabs">
+        <button class="tab-btn active" data-tab="단체장" onclick="switchTab('sido', '단체장', this)">단체장</button>
+        <button class="tab-btn" data-tab="광역의원" onclick="switchTab('sido', '광역의원', this)">광역의원</button>
+      </div>
+      <!-- 단체장 탭 -->
+      <div class="tab-pane active" id="sido-pane-단체장">
+        <div class="sido-wins" id="sido-wins"></div>
+        <div class="party-section" id="sido-bars"></div>
+      </div>
+      <!-- 광역의원 탭 -->
+      <div class="tab-pane" id="sido-pane-광역의원">
+        <div class="party-section" id="sido-council-bars"></div>
+        <div style="padding:0 20px 16px">
+          <div class="section-label" style="margin-bottom:12px">광역의회 비례 의석 추정</div>
+          <table class="seat-table" id="sido-seat-table">
+            <thead><tr><th>정당</th><th>비례 의석</th></tr></thead>
+            <tbody id="sido-seat-body"></tbody>
+          </table>
+          <div style="font-size:12px;color:var(--text3);margin-top:10px">※ 비례 의석만 추정, 지역구 의석은 별도 예측이 필요합니다</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ③ 시군구 상세 패널 -->
+    <div id="panel-detail" style="display:none">
+      <div class="pane-header">
+        <button id="back-to-sido-btn" onclick="backToSido()" style="
+          background:none; border:1px solid var(--border); color:var(--text2);
+          font-family:inherit; font-size:12px; font-weight:500;
+          padding:4px 10px; border-radius:6px; cursor:pointer; margin-bottom:10px;
+        ">← <span id="back-sido-label">시도</span> 보기</button>
+        <div class="ph-sub" id="pd-sido"></div>
+        <div class="ph-name" id="pd-name"></div>
+        <div id="pd-badge"></div>
+      </div>
+      <div class="tab-bar" id="sgg-tabs">
+        <button class="tab-btn active" data-tab="단체장" onclick="switchTab('sgg', '단체장', this)">단체장</button>
+        <button class="tab-btn" data-tab="기초의원" onclick="switchTab('sgg', '기초의원', this)">기초의원</button>
+      </div>
+
+      <!-- 단체장 탭 -->
+      <div class="tab-pane active" id="sgg-pane-단체장">
+        <div class="party-section" id="pd-party-rows"></div>
+        <div class="hist-section">
+          <div class="section-label">역대 선거 실적</div>
+          <div id="hist-rows"></div>
+        </div>
+        <div class="demo-section">
+          <div class="section-label" style="margin-bottom:12px">인구 구성</div>
+          <div class="demo-grid" id="demo-grid"></div>
+        </div>
+      </div>
+
+      <!-- 기초의원 탭 -->
+      <div class="tab-pane" id="sgg-pane-기초의원">
+        <div class="party-section" id="pd-local-rows"></div>
+        <div style="padding:14px 20px;font-size:13px;color:var(--text3);line-height:1.7">
+          기초의원 비례 득표율 예측입니다.<br>실제 기초의회 의석은 지역구 선거 결과에 따라 달라집니다.
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /panel -->
+</div><!-- /layout -->
+
+<script>
+// ── Helpers ────────────────────────────────────────────────────
+function fmt(v)  { return v != null ? (+v).toFixed(1)+'%' : '—'; }
+function fmtN(v) { return v ? (+v).toLocaleString()+'명' : '—'; }
+
+function lerpColor(c1, c2, t) {
+  const r1=parseInt(c1.slice(1,3),16), g1=parseInt(c1.slice(3,5),16), b1=parseInt(c1.slice(5,7),16);
+  const r2=parseInt(c2.slice(1,3),16), g2=parseInt(c2.slice(3,5),16), b2=parseInt(c2.slice(5,7),16);
+  const r=Math.round(r1+(r2-r1)*t), g=Math.round(g1+(g2-g1)*t), b=Math.round(b1+(b2-b1)*t);
+  return `rgb(${r},${g},${b})`;
+}
+
+function getColor(props) {
+  if (!props || !props.pred_winner) return '#dde3ec';
+  const margin = props.pred_margin != null
+    ? (props.pred_margin / 100)
+    : Math.abs((props.pred_민주 || 0) - (props.pred_국힘 || 0)) / 100;
+  const intensity = Math.min(1, margin / 0.28);
+  if (props.pred_winner === '더불어민주당') return lerpColor('#c7dcff', '#2563eb', intensity);
+  return lerpColor('#ffd0d0', '#dc2626', intensity);
+}
+
+function partyBarHTML(name, pct, colorVar) {
+  return `
+    <div class="party-row">
+      <div class="party-meta">
+        <span class="party-name" style="color:${colorVar}">${name}</span>
+        <span class="party-pct" style="color:${colorVar}">${fmt(pct)}</span>
+      </div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:${pct||0}%;background:${colorVar}"></div>
+      </div>
+    </div>`;
+}
+
+function badgeHTML(winner, margin) {
+  if (!winner) return '';
+  if ((margin||0) < 5) return `<span class="pd-badge badge-gray"><span class="dot" style="background:#9ca3af"></span>박빙</span>`;
+  if (winner === '더불어민주당') return `<span class="pd-badge badge-blue"><span class="dot" style="background:var(--blue)"></span>더불어민주당 우세</span>`;
+  return `<span class="pd-badge badge-red"><span class="dot" style="background:var(--red)"></span>국민의힘 우세</span>`;
+}
+
+// ── Tab switching ──────────────────────────────────────────────
+function switchTab(ctx, tabName, btn) {
+  const prefix = ctx === 'sido' ? 'sido' : 'sgg';
+  document.querySelectorAll(`#${prefix}-tabs .tab-btn`).forEach(b => b.classList.remove('active'));
+  document.querySelectorAll(`[id^="${prefix}-pane-"]`).forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(`${prefix}-pane-${tabName}`).classList.add('active');
+}
+
+// ── Map ────────────────────────────────────────────────────────
+const KOREA_BOUNDS = [[33.0, 124.5], [38.9, 131.9]];
+const map = L.map('map', {
+  zoomControl: true,
+  attributionControl: false,
+  maxBounds: [[31.0, 122.0], [40.5, 133.5]],
+  maxBoundsViscosity: 1.0,
+  minZoom: 6,
+}).setView([36.5, 127.8], 7);
+
+// ── State ──────────────────────────────────────────────────────
+let sidoLayer        = null;
+let sigunguLayer     = null;
+let sigunguData      = null;
+let sidoDataCache    = null;
+let currentLevel     = 'sido';
+let selectedSido     = null;
+let selectedSggLayer = null;
+let sidoLabelGroup   = null;  // L.LayerGroup for sido name labels
+
+// ── Sido name label markers ────────────────────────────────────
+function makeSidoLabels(sidoGJ) {
+  const group = L.layerGroup();
+  sidoGJ.features.forEach(f => {
+    const p = f.properties;
+    if (!p.sido) return;
+
+    // Compute center from bounding box using a temporary layer
+    const tmpLayer = L.geoJSON(f);
+    const center = tmpLayer.getBounds().getCenter();
+
+    const icon = L.divIcon({
+      className: '',
+      html: `<span class="sido-label-marker">${p.sido.replace(/특별시|광역시|특별자치시|특별자치도|도$/, '').replace(/특별/,'')}</span>`,
+      iconSize: null,
+      iconAnchor: [0, 0],
+    });
+
+    const marker = L.marker(center, { icon, zIndexOffset: 500, interactive: true });
+    marker.bindTooltip(
+      `<b>${p.sido}</b><br>민주 ${p.민주_wins||0}개 · 국힘 ${p.국힘_wins||0}개`,
+      { className: 'map-tooltip', direction: 'top', offset: [0, -6] }
+    );
+    marker.on('click', e => {
+      L.DomEvent.stopPropagation(e);
+      // Find sido layer to get bounds
+      let bounds = null;
+      if (sidoLayer) {
+        sidoLayer.eachLayer(l => {
+          if (l.feature && l.feature.properties.sido === p.sido) {
+            bounds = l.getBounds();
+          }
+        });
+      }
+      drillInto(p.sido, bounds);
+    });
+    group.addLayer(marker);
+  });
+  return group;
+}
+
+// ── Sido layer factory ─────────────────────────────────────────
+function makeSidoLayer(gj) {
+  return L.geoJSON(gj, {
+    style: f => ({
+      fillColor: getColor(f.properties),
+      fillOpacity: 0.80,
+      color: '#ffffff', weight: 1.0,
+    }),
+    onEachFeature(feature, layer) {
+      const p = feature.properties;
+      layer.bindTooltip(
+        `<b>${p.sido || ''}</b><br>민주 ${p.민주_wins||0}개 · 국힘 ${p.국힘_wins||0}개`,
+        { className: 'map-tooltip', sticky: true, offset: [12, 0] }
+      );
+      layer.on({
+        mouseover() { layer.setStyle({ weight: 2.5, fillOpacity: 0.92 }); layer.bringToFront(); },
+        mouseout()  { sidoLayer && sidoLayer.resetStyle(layer); },
+        click(e) {
+          L.DomEvent.stopPropagation(e);
+          drillInto(p.sido, layer.getBounds());
+        },
+      });
+    },
+  });
+}
+
+// ── Sigungu layer factory ─────────────────────────────────────
+function makeSigunguLayer(gj) {
+  return L.geoJSON(gj, {
+    style: f => ({
+      fillColor: getColor(f.properties),
+      fillOpacity: 0.85,
+      color: '#ffffff', weight: 0.8,
+    }),
+    onEachFeature(feature, layer) {
+      const p = feature.properties;
+      const lead = p.pred_winner === '더불어민주당' ? p.pred_민주 : p.pred_국힘;
+      layer.bindTooltip(
+        `<b>${p.sigungu || p.adm_nm || ''}</b><br>
+         ${p.pred_winner ? `${p.pred_winner} ${fmt(lead)}` : '데이터 없음'}`,
+        { className: 'map-tooltip', sticky: true, offset: [12, 0] }
+      );
+      layer.on({
+        mouseover() {
+          if (layer !== selectedSggLayer)
+            layer.setStyle({ weight: 2, color: '#fff', fillOpacity: 0.95 });
+          layer.bringToFront();
+        },
+        mouseout() {
+          if (layer !== selectedSggLayer) sigunguLayer && sigunguLayer.resetStyle(layer);
+        },
+        click(e) {
+          L.DomEvent.stopPropagation(e);
+          if (selectedSggLayer && selectedSggLayer !== layer) sigunguLayer.resetStyle(selectedSggLayer);
+          selectedSggLayer = layer;
+          layer.setStyle({ weight: 3, color: '#fff', fillOpacity: 1 });
+          showSggDetail(p);
+        },
+      });
+    },
+  });
+}
+
+// ── Drill into sido ────────────────────────────────────────────
+function drillInto(sidoNm, bounds) {
+  currentLevel = 'sido-detail';
+  selectedSido = sidoNm;
+  selectedSggLayer = null;
+
+  // Remove sido layer and labels
+  if (sidoLayer) map.removeLayer(sidoLayer);
+  if (sigunguLayer) map.removeLayer(sigunguLayer);
+  if (sidoLabelGroup) map.removeLayer(sidoLabelGroup);
+
+  const filtered = {
+    type: 'FeatureCollection',
+    features: sigunguData.features.filter(f => f.properties.sido === sidoNm),
+  };
+  sigunguLayer = makeSigunguLayer(filtered);
+  sigunguLayer.addTo(map);
+  map.fitBounds(sigunguLayer.getBounds(), { padding: [20, 20] });
+
+  // Header
+  document.getElementById('back-btn').style.display = '';
+  document.getElementById('level-label').textContent = sidoNm;
+
+  // Show sido summary panel
+  const sidoProps = (sidoDataCache.features.find(f => f.properties.sido === sidoNm) || {}).properties || {};
+  showSidoPanel(sidoProps);
+}
+
+function backToSido() {
+  if (selectedSggLayer) { sigunguLayer.resetStyle(selectedSggLayer); selectedSggLayer = null; }
+  const sidoProps = (sidoDataCache.features.find(f => f.properties.sido === selectedSido) || {}).properties || {};
+  showSidoPanel(sidoProps);
+}
+
+function goBack() {
+  currentLevel = 'sido';
+  selectedSido = null;
+  selectedSggLayer = null;
+
+  if (sigunguLayer) { map.removeLayer(sigunguLayer); sigunguLayer = null; }
+  if (sidoLayer) sidoLayer.addTo(map);
+  if (sidoLabelGroup) sidoLabelGroup.addTo(map);
+  map.fitBounds(KOREA_BOUNDS, { padding: [10, 10] });
+
+  document.getElementById('back-btn').style.display = 'none';
+  document.getElementById('level-label').textContent = '9회 전국동시지방선거 예측';
+  showPanel('national');
+}
+
+// ── Click empty map ────────────────────────────────────────────
+map.on('click', () => {
+  if (currentLevel === 'sido') return;
+  if (selectedSggLayer) { sigunguLayer.resetStyle(selectedSggLayer); selectedSggLayer = null; }
+  const sidoProps = (sidoDataCache.features.find(f => f.properties.sido === selectedSido) || {}).properties || {};
+  showSidoPanel(sidoProps);
+});
+
+// ── Panel helpers ──────────────────────────────────────────────
+function showPanel(which) {
+  document.getElementById('panel-national').style.display = which === 'national' ? '' : 'none';
+  document.getElementById('panel-sido').style.display     = which === 'sido'     ? 'flex' : 'none';
+  document.getElementById('panel-detail').style.display   = which === 'sgg'      ? 'flex' : 'none';
+  document.getElementById('panel').scrollTop = 0;
+}
+
+// ── Sido summary panel ─────────────────────────────────────────
+function showSidoPanel(p) {
+  showPanel('sido');
+  document.getElementById('sido-sub').textContent  = '시도';
+  document.getElementById('sido-name').textContent = p.sido || '—';
+  document.getElementById('sido-badge').innerHTML  = badgeHTML(p.pred_winner, Math.abs((p.pred_민주||0) - (p.pred_국힘||0)));
+
+  document.getElementById('sido-wins').innerHTML = `
+    <div class="wins-card">
+      <div class="wins-val" style="color:var(--blue)">${p.민주_wins||0}</div>
+      <div class="wins-lbl">민주 단체장 예상</div>
+    </div>
+    <div class="wins-card">
+      <div class="wins-val" style="color:var(--red)">${p.국힘_wins||0}</div>
+      <div class="wins-lbl">국힘 단체장 예상</div>
+    </div>`;
+
+  document.getElementById('sido-bars').innerHTML =
+    partyBarHTML('더불어민주당', p.pred_민주, 'var(--blue)') +
+    partyBarHTML('국민의힘', p.pred_국힘, 'var(--red)') +
+    partyBarHTML('기타', p.pred_기타, 'var(--other)');
+
+  document.getElementById('sido-council-bars').innerHTML =
+    partyBarHTML('더불어민주당', p.pred_광역_민주, 'var(--blue)') +
+    partyBarHTML('국민의힘', p.pred_광역_국힘, 'var(--red)') +
+    partyBarHTML('기타', p.pred_광역_기타, 'var(--other)');
+
+  const tbody = document.getElementById('sido-seat-body');
+  const seats = [
+    ['더불어민주당', p.est_광역_민주_비례, 'var(--blue)'],
+    ['국민의힘',     p.est_광역_국힘_비례, 'var(--red)'],
+    ['기타',         p.est_광역_기타_비례, 'var(--other)'],
+  ];
+  tbody.innerHTML = seats.map(([nm, n, c]) =>
+    `<tr><td>${nm}</td><td style="color:${c};font-size:16px;font-weight:700">${n != null ? n : '—'} 석</td></tr>`
+  ).join('');
+
+  switchTab('sido', '단체장', document.querySelector('#sido-tabs .tab-btn[data-tab="단체장"]'));
+}
+
+// ── Sigungu detail panel ───────────────────────────────────────
+function showSggDetail(p) {
+  showPanel('sgg');
+
+  document.getElementById('pd-sido').textContent = p.sido || '';
+  document.getElementById('pd-name').textContent = p.sigungu || p.adm_nm || '';
+  document.getElementById('pd-badge').innerHTML  = badgeHTML(p.pred_winner, p.pred_margin);
+  document.getElementById('back-sido-label').textContent = p.sido || '시도';
+
+  document.getElementById('pd-party-rows').innerHTML =
+    partyBarHTML('더불어민주당', p.pred_민주, 'var(--blue)') +
+    partyBarHTML('국민의힘', p.pred_국힘, 'var(--red)') +
+    partyBarHTML('기타', p.pred_기타, 'var(--other)');
+
+  // History
+  const rounds = [
+    { label: '21대 대선\n(2025)', dem: p.r21pres_민주, rep: p.r21pres_국힘, oth: p.r21pres_기타 },
+    { label: '8회 지방선거\n(2022)', dem: p.r8_민주, rep: p.r8_국힘 },
+    { label: '7회 지방선거\n(2018)', dem: p.r7_민주, rep: p.r7_국힘 },
+    { label: '9회 예측\n(2026)', dem: p.pred_민주, rep: p.pred_국힘, oth: p.pred_기타, pred: true },
+  ];
+  document.getElementById('hist-rows').innerHTML = rounds.map(r => {
+    if (r.dem == null && r.rep == null) return '';
+    const d = r.dem||0, rp = r.rep||0, oth = r.oth||0;
+    const total = d + rp + oth || 100;
+    const dw = (d/total*100).toFixed(1), rw = (rp/total*100).toFixed(1), ow = (oth/total*100).toFixed(1);
+    return `
+      <div class="hist-row">
+        <div class="hist-round" style="${r.pred?'font-weight:600;color:var(--text1)':''}">${r.label.replace('\\n','<br>')}</div>
+        <div class="hist-bars">
+          <div class="hist-bar-row">
+            <div class="hist-bar-dem" style="width:${dw}%;${r.pred?'background:var(--blue)':''}"></div>
+            <div class="hist-bar-rep" style="width:${rw}%;${r.pred?'background:var(--red)':''}"></div>
+            ${oth > 0 ? `<div class="hist-bar-oth" style="width:${ow}%;${r.pred?'background:var(--other)':''}"></div>` : ''}
+          </div>
+          <div class="hist-pcts">
+            <span class="hist-label" style="${r.pred?'color:var(--blue);font-weight:700':''}">${fmt(r.dem)}</span>
+            <span class="hist-label" style="${r.pred?'color:var(--red);font-weight:700':''}">${fmt(r.rep)}</span>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+
+  // Demographics
+  const youth = (p.ratio_20s != null && p.ratio_30s != null) ? +(p.ratio_20s + p.ratio_30s).toFixed(1) : null;
+  const items = [
+    { val: p.ratio_elderly, lbl: '고령 (65세+)',  color: p.ratio_elderly > 20 ? '#dc2626' : p.ratio_elderly < 12 ? '#2563eb' : '#64748b' },
+    { val: youth,           lbl: '청년 (20-30대)', color: youth > 28 ? '#2563eb' : '#64748b' },
+    { val: p.ratio_40s,     lbl: '40대 비율' },
+    { val: p.ratio_50s,     lbl: '50대 비율' },
+    { val: p.ratio_60s,     lbl: '60대 비율' },
+    { val: p.ratio_female,  lbl: '여성 비율' },
+  ];
+  document.getElementById('demo-grid').innerHTML =
+    items.filter(it => it.val != null).map(it =>
+      `<div class="demo-card"><div class="demo-val" style="color:${it.color||'var(--text1)'}">${fmt(it.val)}</div><div class="demo-lbl">${it.lbl}</div></div>`
+    ).join('') +
+    `<div class="demo-card demo-full"><div class="demo-val">${fmtN(p.total_pop)}</div><div class="demo-lbl">총 인구</div></div>`;
+
+  document.getElementById('pd-local-rows').innerHTML =
+    partyBarHTML('더불어민주당', p.pred_기초_민주, 'var(--blue)') +
+    partyBarHTML('국민의힘', p.pred_기초_국힘, 'var(--red)') +
+    partyBarHTML('기타', p.pred_기초_기타, 'var(--other)');
+
+  switchTab('sgg', '단체장', document.querySelector('#sgg-tabs .tab-btn[data-tab="단체장"]'));
+}
+
+// ── Load data ──────────────────────────────────────────────────
+const _v = Date.now();
+Promise.all([
+  fetch(`public/sido_data.geojson?v=${_v}`).then(r => r.json()),
+  fetch(`public/map_data.geojson?v=${_v}`).then(r => r.json()),
+]).then(([sidoGJ, sggGJ]) => {
+  sidoDataCache = sidoGJ;
+  sigunguData   = sggGJ;
+
+  // National summary
+  let dem=0, rep=0, close=0;
+  sggGJ.features.forEach(f => {
+    const p = f.properties;
+    if (!p.pred_winner) return;
+    p.pred_winner === '더불어민주당' ? dem++ : rep++;
+    if ((p.pred_margin||0) < 5) close++;
+  });
+  document.getElementById('sum-dem').textContent   = dem;
+  document.getElementById('sum-rep').textContent   = rep;
+  document.getElementById('sum-close').textContent = close;
+
+  // Init sido layer
+  sidoLayer = makeSidoLayer(sidoGJ);
+  sidoLayer.addTo(map);
+
+  // Add sido name labels (always visible, also solve Seoul click issue)
+  sidoLabelGroup = makeSidoLabels(sidoGJ);
+  sidoLabelGroup.addTo(map);
+
+  map.fitBounds(KOREA_BOUNDS, { padding: [10, 10] });
+  document.getElementById('loading').style.display = 'none';
+}).catch(err => {
+  document.getElementById('loading').innerHTML = '⚠️ 데이터 로드 실패: ' + err.message;
+});
+</script>
+</body>
+</html>

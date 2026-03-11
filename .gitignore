@@ -1,0 +1,17 @@
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Claude settings
+.claude/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Raw GeoJSON input (not needed for web app)
+web/public/sigungu.geojson
+web/public/map_data_simple.geojson
